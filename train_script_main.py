@@ -11,28 +11,52 @@ from co_lib import Co_Lib as CL
 from xgen_tools import *
 COCOPIE_MAP = {'epochs' : 'common_train_epochs'}
 
+
 class Net(nn.Module):
-    def __init__(self):
+
+    def __init__(self, scaling_down_factor):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
+
+        _convs = 3
+        _cov1kernels_org = 128
+        _cov2kernels_org = 2*_cov1kernels_org
+        _cov3kernels_org = 2*_cov1kernels_org
+        _inputsize = 28
+        _classes = 10
+        _batchsize = 128
+        _kernelsize = 3
+        _dropoutp = 0.5
+        _poolsize = 2
+
+        print("scaling_down_factor:", scaling_down_factor)
+        cov1kernels = max(1,int(_cov1kernels_org * (1-scaling_down_factor/2))) # prune less at the beginning
+        print("Cov1: ", 1, " ", cov1kernels, " ", _kernelsize, " ", 1)
+        self.conv1 = nn.Conv2d(1, cov1kernels, _kernelsize, 1)
+
+        cov2kernels = max(1,int(_cov2kernels_org * (1-scaling_down_factor)))
+        print("Cov2: ", cov1kernels, " ", cov2kernels, " ", _kernelsize, " ", 1)
+        self.conv2 = nn.Conv2d(cov1kernels, cov2kernels, _kernelsize, 1)
+
+        cov3kernels = max(1,int(_cov3kernels_org * (1-scaling_down_factor))) # prune less at the end
+        print("Cov3: ", cov2kernels, " ", cov3kernels, " ", _kernelsize, " ", 1)
+        self.conv3 = nn.Conv2d(cov2kernels, cov3kernels, _kernelsize, 1)
+        self.dropout1 = nn.Dropout(_dropoutp)
+
+        fcwidth = max(1, cov3kernels*int((_inputsize-2*_convs)/_poolsize)*int((_inputsize-2*_convs)/_poolsize))
+        print("Fc:  ", fcwidth, " ", _classes, " ", 1) # each conv reduces the size by 2 at the boundary
+        self.fc = nn.Linear(fcwidth, _classes)
 
     def forward(self, x):
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
         x = F.relu(x)
+        x = self.conv3(x)
+        x = F.relu(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout1(x)
         x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
+        x = self.fc(x)
         output = F.log_softmax(x, dim=1)
         return output
 
@@ -68,11 +92,11 @@ def test(model, device, test_loader):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
-
+    test_accuracy = 100. * correct / len(test_loader.dataset)
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
-
+        test_accuracy))
+    return test_accuracy
 
 def training_main(args_ai):
     # Training settings
@@ -98,7 +122,9 @@ def training_main(args_ai):
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
     args = parser.parse_args()
-    orginalArgs = xgen_init(args, args_ai, COCOPIE_MAP)
+    orginalArgs, args_ai = xgen_init(args, map = COCOPIE_MAP)
+
+    scaling_factor = args_ai['origin']['scaling_factor']
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -126,12 +152,12 @@ def training_main(args_ai):
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
-    model = Net().to(device)
+    model = Net(scaling_factor).to(device)
     xgen_load(model,args_ai=args_ai)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-    CL.init(args=args_ai, model= model, optimizer=optimizer, data_loader=train_loader) 
+    CL.init(args=args_ai, model= model, optimizer=optimizer, data_loader=train_loader)
 
     for epoch in range(1, args.epochs + 1):
         CL.before_each_train_epoch(epoch=epoch)
