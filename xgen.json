@@ -25,6 +25,7 @@
     "scaling_factor": 2,
     "root_path": "./___workplace___/",
     "num_classes": 10,
+    "learning_rate": 0.001,
     "batch_size": 128
   },
   "pruning": {
