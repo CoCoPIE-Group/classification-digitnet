@@ -1,12 +1,15 @@
 {
-  "general": {
+    "general": {
     "work_place": null,
     "tran_scripts_path": null,
-    "pretrained_model_path": "./checkpoint/ckpt.pth"
+    "enable_ddp": false,
+    "CUDA_VISIBLE_DEVICES": "0",
+    "random_seed": 3407,
+    "pretrained_model_path": null
   },
   "user_requirements": {
     "accuracy": 80.0,
-    "latency": null,
+    "latency": 20.0,
     "margin": 0.1,
     "max_sampling": 10
   },
@@ -21,12 +24,12 @@
     "train_label_path": null,
     "eval_data_path": "./data",
     "eval_label_path": null,
-    "common_train_epochs": 200,
-    "scaling_factor": 2,
+    "common_train_epochs": 3,
+    "scaling_factor": 0,
     "root_path": "./___workplace___/",
     "num_classes": 10,
-    "learning_rate": 0.001,
-    "batch_size": 128
+    "batch_size": 128,
+    "learning_rate":0.01
   },
   "pruning": {
     "prune_method": null,
@@ -43,8 +46,8 @@
   "scaling": {
     "searching_variable": "scaling_factor",
     "searching_range": [
-      1,
-      23
+      0,
+      0.99
     ],
     "searching_granularity": 1
   }
